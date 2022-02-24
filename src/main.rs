@@ -1,5 +1,4 @@
-//! Sine wave generator with frequency configuration exposed through standard
-//! input.
+//! Gain plugin based on https://mu.krj.st/mix/
 
 use crossbeam_channel::{bounded, Sender};
 use std::io;
@@ -12,16 +11,23 @@ fn main() {
 
     // 2. register port
     let mut out_port = client
-        .register_port("fader_out", jack::AudioOut::default())
+        .register_port("gain_out", jack::AudioOut::default())
         .unwrap();
 
     let mut in_port = client
-        .register_port("fader_in", jack::AudioIn::default())
+        .register_port("gain_in", jack::AudioIn::default())
         .unwrap();
 
     // 3. define process callback handler
     let (tx, rx) = bounded(1_000_000);
-    let mut volume = db2lin(0.0);
+    let mut volume_current: f32 = db2lin(0.0);
+    let mut volume_destination: f32 = 1.0;
+    let mut volume_step_counter = 0;
+    let mut volume_step_size = 0.0;
+
+    // Define the amount of steps to be the amount of samples in 50ms
+    let step_amount: i32 = (client.sample_rate() as f32 * 0.05) as i32;
+
     let process = jack::ClosureProcessHandler::new(
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
             // Get output buffer
@@ -31,13 +37,24 @@ fn main() {
 
             // Check volume requests
             while let Ok(v) = rx.try_recv() {
-                volume = v;
-                println!("received: {} {}", v, volume);
+                volume_destination = v;
+                volume_step_counter = step_amount;
+                volume_step_size = (volume_destination - volume_current) / step_amount as f32;
+                println!("received: {}", v);
             }
 
             // Write output
             for (input, output) in in_p.iter().zip( out_p.iter_mut()) {
-                *output = db2lin(volume) * input;
+                // Check if the current volume is at the destination by checking if there's steps left
+                if volume_step_counter > 0 {
+                    volume_step_counter -= 1;
+                    volume_current += volume_step_size;
+                }
+                *output = db2lin(volume_current) * input;
+
+                // y = x^4 is an approximation to the ideal exponential function for a dB range from
+                // 0 to 60, with values between 0 and 1 for the volume
+                //*output = volume.powf(4.0) * input;
             }
 
             // Continue as normal
@@ -51,12 +68,11 @@ fn main() {
     // processing starts here
 
     // 5. wait or do some processing while your handler is running in real time.
-    let mut egui_ctx = egui::CtxRef::default();
-
     loop {
-
+        if let Some(f) = read_freq() {
+            tx.send(f).unwrap();
+        }
     }
-
     // 6. Optional deactivate. Not required since active_client will deactivate on
     // drop, though explicit deactivate may help you identify errors in
     // deactivate.
@@ -74,10 +90,11 @@ fn read_freq() -> Option<f32> {
     }
 }
 
+#[inline]
+/// Converts a db change into a linear value
+///
+/// Source: https://mu.krj.st/mix/
+///
 fn db2lin(input: f32) -> f32 {
     10.0_f32.powf(input * 0.05) as f32
-}
-
-fn lin2db(input: f32) -> f32 {
-    20_f32 * input.log10()
 }
