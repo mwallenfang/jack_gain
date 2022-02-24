@@ -7,7 +7,7 @@ use std::str::FromStr;
 fn main() {
     // 1. open a client
     let (client, _status) =
-        jack::Client::new("rust_jack_sine", jack::ClientOptions::NO_START_SERVER).unwrap();
+        jack::Client::new("jack_gain", jack::ClientOptions::NO_START_SERVER).unwrap();
 
     // 2. register port
     let mut out_port = client
