@@ -1,6 +1,6 @@
 //! Gain plugin based on https://mu.krj.st/mix/
 
-use crossbeam_channel::{bounded, Sender};
+use ringbuf::RingBuffer;
 use std::io;
 use std::str::FromStr;
 
@@ -19,14 +19,16 @@ fn main() {
         .unwrap();
 
     // 3. define process callback handler
-    let (tx, rx) = bounded(1_000_000);
-    let mut volume_current: f32 = db2lin(0.0);
-    let mut volume_destination: f32 = 1.0;
-    let mut volume_step_counter = 0;
-    let mut volume_step_size = 0.0;
+    let rb = RingBuffer::<f32>::new(client.sample_rate());
+    let (mut prod, mut cons) = rb.split();
 
     // Define the amount of steps to be the amount of samples in 50ms
     let step_amount: i32 = (client.sample_rate() as f32 * 0.05) as i32;
+
+    let mut volume_current: f32 = 0.0;
+    let mut volume_destination: f32 = 0.0;
+    let mut volume_step_counter = step_amount;
+    let mut volume_step_size = (volume_destination - volume_current) / step_amount as f32;
 
     let process = jack::ClosureProcessHandler::new(
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
@@ -36,7 +38,7 @@ fn main() {
             let in_p = in_port.as_slice(ps);
 
             // Check volume requests
-            while let Ok(v) = rx.try_recv() {
+            while let Some(v) = cons.pop() {
                 volume_destination = v;
                 volume_step_counter = step_amount;
                 volume_step_size = (volume_destination - volume_current) / step_amount as f32;
@@ -70,7 +72,7 @@ fn main() {
     // 5. wait or do some processing while your handler is running in real time.
     loop {
         if let Some(f) = read_freq() {
-            tx.send(f).unwrap();
+            prod.push(f).unwrap();
         }
     }
     // 6. Optional deactivate. Not required since active_client will deactivate on
