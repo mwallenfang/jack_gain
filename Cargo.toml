@@ -1,5 +1,5 @@
 [package]
-name = "jack_mix"
+name = "jack_gain"
 version = "0.1.0"
 edition = "2021"
 
