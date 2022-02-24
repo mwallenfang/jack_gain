@@ -22,6 +22,7 @@ fn main() {
     let rb = RingBuffer::<f32>::new(client.sample_rate());
     let (mut prod, mut cons) = rb.split();
 
+    // TODO: Refactor the volume value flow, as the content of the variables isn't clear
     // Define the amount of steps to be the amount of samples in 50ms
     let step_amount: i32 = (client.sample_rate() as f32 * 0.05) as i32;
 
