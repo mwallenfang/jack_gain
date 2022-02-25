@@ -5,5 +5,5 @@ of dB values through the terminal
 
 ### TODO:
 - Tests
-- Clearer volume variables
 - Simple GUI
+- Exponential smoothing

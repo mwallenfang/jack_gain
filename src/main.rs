@@ -3,6 +3,7 @@
 use ringbuf::RingBuffer;
 use std::io;
 use std::str::FromStr;
+use itertools::izip;
 
 fn main() {
     // 1. open a client
@@ -10,12 +11,20 @@ fn main() {
         jack::Client::new("jack_gain", jack::ClientOptions::NO_START_SERVER).unwrap();
 
     // 2. register port
-    let mut out_port = client
-        .register_port("gain_out", jack::AudioOut::default())
+    let mut out_port_l = client
+        .register_port("gain_out_l", jack::AudioOut::default())
         .unwrap();
 
-    let mut in_port = client
-        .register_port("gain_in", jack::AudioIn::default())
+    let mut out_port_r = client
+        .register_port("gain_out_r", jack::AudioOut::default())
+        .unwrap();
+
+    let in_port_l = client
+        .register_port("gain_in_l", jack::AudioIn::default())
+        .unwrap();
+
+    let in_port_r = client
+        .register_port("gain_in_r", jack::AudioIn::default())
         .unwrap();
 
     // 3. define process callback handler
@@ -26,34 +35,40 @@ fn main() {
     // Define the amount of steps to be the amount of samples in 50ms
     let step_amount: i32 = (client.sample_rate() as f32 * 0.05) as i32;
 
-    let mut volume_current: f32 = 0.0;
-    let mut volume_destination: f32 = 0.0;
-    let mut volume_step_counter = step_amount;
-    let mut volume_step_size = (volume_destination - volume_current) / step_amount as f32;
+    let mut db_current: f32 = 0.0;
+    let mut db_destination: f32 = 0.0;
+    let mut db_step_counter = step_amount;
+    let mut db_step_size = (db_destination - db_current) / step_amount as f32;
 
     let process = jack::ClosureProcessHandler::new(
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
             // Get output buffer
-            let out_p = out_port.as_mut_slice(ps);
+            let out_p_l = out_port_l.as_mut_slice(ps);
+            let out_p_r = out_port_r.as_mut_slice(ps);
 
-            let in_p = in_port.as_slice(ps);
+            let in_p_l = in_port_l.as_slice(ps);
+            let in_p_r = in_port_r.as_slice(ps);
+
 
             // Check volume requests
             while let Some(v) = cons.pop() {
-                volume_destination = v;
-                volume_step_counter = step_amount;
-                volume_step_size = (volume_destination - volume_current) / step_amount as f32;
+                db_destination = v;
+                db_step_counter = step_amount;
+                db_step_size = (db_destination - db_current) / step_amount as f32;
                 println!("received: {}", v);
             }
 
             // Write output
-            for (input, output) in in_p.iter().zip( out_p.iter_mut()) {
+            for (input_l, input_r, output_l, output_r) in izip!(in_p_l, in_p_r, out_p_l, out_p_r) {
                 // Check if the current volume is at the destination by checking if there's steps left
-                if volume_step_counter > 0 {
-                    volume_step_counter -= 1;
-                    volume_current += volume_step_size;
+                if db_step_counter > 0 {
+                    db_step_counter -= 1;
+                    db_current += db_step_size;
                 }
-                *output = db2lin(volume_current) * input;
+
+                let lin_change = db2lin(db_current);
+                *output_l = lin_change * input_l;
+                *output_r = lin_change * input_r;
 
                 // y = x^4 is an approximation to the ideal exponential function for a dB range from
                 // 0 to 60, with values between 0 and 1 for the volume
