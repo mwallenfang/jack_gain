@@ -1,9 +1,9 @@
 //! Gain plugin based on https://mu.krj.st/mix/
 
+use itertools::izip;
 use ringbuf::RingBuffer;
 use std::io;
 use std::str::FromStr;
-use itertools::izip;
 
 fn main() {
     // 1. open a client
@@ -31,7 +31,6 @@ fn main() {
     let rb = RingBuffer::<f32>::new(client.sample_rate());
     let (mut prod, mut cons) = rb.split();
 
-    // TODO: Refactor the volume value flow, as the content of the variables isn't clear
     // Define the amount of steps to be the amount of samples in 50ms
     let step_amount: i32 = (client.sample_rate() as f32 * 0.05) as i32;
 
@@ -49,13 +48,12 @@ fn main() {
             let in_p_l = in_port_l.as_slice(ps);
             let in_p_r = in_port_r.as_slice(ps);
 
-
+            // TODO: Exponential smoothing
             // Check volume requests
             while let Some(v) = cons.pop() {
                 db_destination = v;
                 db_step_counter = step_amount;
                 db_step_size = (db_destination - db_current) / step_amount as f32;
-                println!("received: {}", v);
             }
 
             // Write output
@@ -81,7 +79,7 @@ fn main() {
     );
 
     // 4. Activate the client. Also connect the ports to the system audio.
-    let active_client = client.activate_async((), process).unwrap();
+    let _active_client = client.activate_async((), process).unwrap();
 
     // processing starts here
 
@@ -94,7 +92,7 @@ fn main() {
     // 6. Optional deactivate. Not required since active_client will deactivate on
     // drop, though explicit deactivate may help you identify errors in
     // deactivate.
-    active_client.deactivate().unwrap();
+    //_active_client.deactivate().unwrap();
 }
 
 /// Attempt to read a frequency from standard in. Will block until there is
