@@ -1,9 +1,45 @@
 //! Gain plugin based on https://mu.krj.st/mix/
 
 use itertools::izip;
-use ringbuf::RingBuffer;
+use ringbuf::{Producer, RingBuffer};
 use std::io;
 use std::str::FromStr;
+use vizia::{Application, Context, Event, HStack, Knob, Model, WindowDescription, Lens};
+
+#[derive(Lens)]
+pub struct UIData {
+    gain: f32,
+    #[lens(ignore)]
+    producer: Producer<f32>
+}
+
+pub enum UIEvents {
+    GainChange(f32)
+}
+
+impl Model for UIData {
+    fn event(&mut self, cx: &mut Context, event: &mut Event) {
+        if let Some(gain_event) = event.message.downcast() {
+            match gain_event {
+                UIEvents::GainChange(n) => {
+                    self.gain = *n;
+                    self.producer.push(*n);
+                }
+            }
+        }
+    }
+}
+
+fn ui(prod: Producer<f32>) {
+    Application::new(WindowDescription::new(), move |cx| {
+        UIData{gain: 1.0, producer: prod}.build(cx);
+
+        HStack::new(cx, |cx| {
+            Knob::new(cx, 1.0, UIData::gain, false)
+                .on_changing(move |cx, val| cx.emit(UIEvents::GainChange(val)));
+        });
+    }).run();
+}
 
 fn main() {
     // 1. open a client
@@ -67,10 +103,6 @@ fn main() {
                 let lin_change = db2lin(db_current);
                 *output_l = lin_change * input_l;
                 *output_r = lin_change * input_r;
-
-                // y = x^4 is an approximation to the ideal exponential function for a dB range from
-                // 0 to 60, with values between 0 and 1 for the volume
-                //*output = volume.powf(4.0) * input;
             }
 
             // Continue as normal
@@ -81,14 +113,9 @@ fn main() {
     // 4. Activate the client. Also connect the ports to the system audio.
     let _active_client = client.activate_async((), process).unwrap();
 
-    // processing starts here
+    // 5. Start the GUI with the producer to send the parameters
+    ui(prod);
 
-    // 5. wait or do some processing while your handler is running in real time.
-    loop {
-        if let Some(f) = read_freq() {
-            prod.push(f).unwrap();
-        }
-    }
     // 6. Optional deactivate. Not required since active_client will deactivate on
     // drop, though explicit deactivate may help you identify errors in
     // deactivate.
