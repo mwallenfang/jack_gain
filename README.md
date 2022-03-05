@@ -5,5 +5,6 @@ of dB values through the terminal
 
 ### TODO:
 - Tests
-- Simple GUI
+- Make GUI pretty
+  - Create gain meter
 - Exponential smoothing

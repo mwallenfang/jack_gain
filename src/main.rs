@@ -1,45 +1,14 @@
 //! Gain plugin based on https://mu.krj.st/mix/
 
 use itertools::izip;
-use ringbuf::{Producer, RingBuffer};
-use std::io;
-use std::str::FromStr;
-use vizia::{Application, Context, Event, HStack, Knob, Model, WindowDescription, Lens};
+use std::sync::atomic::Ordering;
+use atomic_float::AtomicF32;
 
-#[derive(Lens)]
-pub struct UIData {
-    gain: f32,
-    #[lens(ignore)]
-    producer: Producer<f32>
-}
+static GAIN_ATOMIC: AtomicF32 = AtomicF32::new(1.0);
 
-pub enum UIEvents {
-    GainChange(f32)
-}
+const DYNAMIC_RANGE: f32 = -80.0;
 
-impl Model for UIData {
-    fn event(&mut self, cx: &mut Context, event: &mut Event) {
-        if let Some(gain_event) = event.message.downcast() {
-            match gain_event {
-                UIEvents::GainChange(n) => {
-                    self.gain = *n;
-                    self.producer.push(*n);
-                }
-            }
-        }
-    }
-}
-
-fn ui(prod: Producer<f32>) {
-    Application::new(WindowDescription::new(), move |cx| {
-        UIData{gain: 1.0, producer: prod}.build(cx);
-
-        HStack::new(cx, |cx| {
-            Knob::new(cx, 1.0, UIData::gain, false)
-                .on_changing(move |cx, val| cx.emit(UIEvents::GainChange(val)));
-        });
-    }).run();
-}
+mod ui;
 
 fn main() {
     // 1. open a client
@@ -63,10 +32,6 @@ fn main() {
         .register_port("gain_in_r", jack::AudioIn::default())
         .unwrap();
 
-    // 3. define process callback handler
-    let rb = RingBuffer::<f32>::new(client.sample_rate());
-    let (mut prod, mut cons) = rb.split();
-
     // Define the amount of steps to be the amount of samples in 50ms
     let step_amount: i32 = (client.sample_rate() as f32 * 0.05) as i32;
 
@@ -85,12 +50,11 @@ fn main() {
             let in_p_r = in_port_r.as_slice(ps);
 
             // TODO: Exponential smoothing
-            // Check volume requests
-            while let Some(v) = cons.pop() {
-                db_destination = v;
-                db_step_counter = step_amount;
-                db_step_size = (db_destination - db_current) / step_amount as f32;
-            }
+            // TODO: Optimize useless calculations
+            // Calculate new volume settings
+            db_destination = GAIN_ATOMIC.load(Ordering::Relaxed);
+            db_step_counter = step_amount;
+            db_step_size = (db_destination - db_current) / step_amount as f32;
 
             // Write output
             for (input_l, input_r, output_l, output_r) in izip!(in_p_l, in_p_r, out_p_l, out_p_r) {
@@ -100,7 +64,7 @@ fn main() {
                     db_current += db_step_size;
                 }
 
-                let lin_change = db2lin(db_current);
+                let lin_change = db2lin((1.0 - db_current) * DYNAMIC_RANGE);
                 *output_l = lin_change * input_l;
                 *output_r = lin_change * input_r;
             }
@@ -114,23 +78,7 @@ fn main() {
     let _active_client = client.activate_async((), process).unwrap();
 
     // 5. Start the GUI with the producer to send the parameters
-    ui(prod);
-
-    // 6. Optional deactivate. Not required since active_client will deactivate on
-    // drop, though explicit deactivate may help you identify errors in
-    // deactivate.
-    //_active_client.deactivate().unwrap();
-}
-
-/// Attempt to read a frequency from standard in. Will block until there is
-/// user input. `None` is returned if there was an error reading from standard
-/// in, or the retrieved string wasn't a compatible u16 integer.
-fn read_freq() -> Option<f32> {
-    let mut user_input = String::new();
-    match io::stdin().read_line(&mut user_input) {
-        Ok(_) => f32::from_str(user_input.trim()).ok(),
-        Err(_) => None,
-    }
+    ui::ui();
 }
 
 #[inline]
