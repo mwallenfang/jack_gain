@@ -8,3 +8,4 @@ of dB values through the terminal
 - Make GUI pretty
   - Create gain meter
 - Exponential smoothing
+- Documentation
