@@ -10,3 +10,4 @@ jack = "0.9.0"
 itertools = "0.10.3"
 vizia = {git = "https://github.com/vizia/vizia"}
 atomic_float = "0.1.0"
+femtovg = { version = "0.3.0", default-features = false, features = ["image-loading"] }

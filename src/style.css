@@ -1,11 +1,31 @@
+label {
+    color: #ffffff;
+}
+
+.main {
+    child-space: 2%;
+    col-between: 2.5%;
+    background-color: #333030;
+}
+
 knob {
     width: 100px;
     height: 100px;
-    background-color: #292628;
+    background-color: #1d1b1c;
     border-radius: 50px;
     border-width: 2px;
 }
 
 knob .track {
-    background-color: #f54e47;
+    background-color: #4eead1;
+}
+
+meter {
+    background-color: #1d1b1c;
+    width: 5%;
+    border-radius: 25%;
+}
+
+meter meter_bar {
+    background-color: #4eead1;
 }
