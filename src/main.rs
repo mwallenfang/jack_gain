@@ -2,13 +2,19 @@
 
 use itertools::izip;
 use std::sync::atomic::Ordering;
+use std::sync::atomic::Ordering::Relaxed;
 use atomic_float::AtomicF32;
 
 static GAIN_ATOMIC: AtomicF32 = AtomicF32::new(1.0);
+static IN_L_ATOMIC: AtomicF32 = AtomicF32::new(0.0);
+static IN_R_ATOMIC: AtomicF32 = AtomicF32::new(0.0);
+static OUT_L_ATOMIC: AtomicF32 = AtomicF32::new(0.0);
+static OUT_R_ATOMIC: AtomicF32 = AtomicF32::new(0.0);
 
 const DYNAMIC_RANGE: f32 = -80.0;
 
 mod ui;
+mod meter;
 
 fn main() {
     // 1. open a client
@@ -59,14 +65,23 @@ fn main() {
             // Write output
             for (input_l, input_r, output_l, output_r) in izip!(in_p_l, in_p_r, out_p_l, out_p_r) {
                 // Check if the current volume is at the destination by checking if there's steps left
+                IN_L_ATOMIC.store((*input_l).abs(), Relaxed);
+                IN_R_ATOMIC.store((*input_r).abs(), Relaxed);
+
                 if db_step_counter > 0 {
                     db_step_counter -= 1;
                     db_current += db_step_size;
                 }
 
                 let lin_change = db2lin((1.0 - db_current) * DYNAMIC_RANGE);
-                *output_l = lin_change * input_l;
-                *output_r = lin_change * input_r;
+                let out_l_val = lin_change * input_l;
+                let out_r_val = lin_change * input_r;
+
+                OUT_L_ATOMIC.store(out_l_val.abs(), Relaxed);
+                OUT_R_ATOMIC.store(out_r_val.abs(), Relaxed);
+
+                *output_l = out_l_val;
+                *output_r = out_r_val;
             }
 
             // Continue as normal
