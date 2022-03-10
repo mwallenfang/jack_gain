@@ -45,6 +45,8 @@ fn main() {
     let mut db_destination: f32 = 0.0;
     let mut db_step_counter = step_amount;
     let mut db_step_size = (db_destination - db_current) / step_amount as f32;
+    let mut last_value = 1.0;
+
 
     let process = jack::ClosureProcessHandler::new(
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
@@ -56,11 +58,13 @@ fn main() {
             let in_p_r = in_port_r.as_slice(ps);
 
             // TODO: Exponential smoothing
-            // TODO: Optimize useless calculations
-            // Calculate new volume settings
+            // Calculate new volume settings if the parameter value has changed
             db_destination = GAIN_ATOMIC.load(Ordering::Relaxed);
-            db_step_counter = step_amount;
-            db_step_size = (db_destination - db_current) / step_amount as f32;
+            if db_destination != last_value {
+                db_step_counter = step_amount;
+                db_step_size = (db_destination - db_current) / step_amount as f32;
+                last_value = db_destination
+            }
 
             // Write output
             for (input_l, input_r, output_l, output_r) in izip!(in_p_l, in_p_r, out_p_l, out_p_r) {
