@@ -1,9 +1,9 @@
 //! Gain plugin based on https://mu.krj.st/mix/
 
+use atomic_float::AtomicF32;
 use itertools::izip;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::Ordering::Relaxed;
-use atomic_float::AtomicF32;
 
 static GAIN_ATOMIC: AtomicF32 = AtomicF32::new(1.0);
 static IN_L_ATOMIC: AtomicF32 = AtomicF32::new(0.0);
@@ -13,8 +13,8 @@ static OUT_R_ATOMIC: AtomicF32 = AtomicF32::new(0.0);
 
 const DYNAMIC_RANGE: f32 = -80.0;
 
-mod ui;
 mod meter;
+mod ui;
 
 fn main() {
     // 1. open a client

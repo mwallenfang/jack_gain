@@ -1,9 +1,9 @@
-use std::collections::VecDeque;
-use vizia::*;
-use vizia::Color as vizColor;
-use femtovg::{Paint, Path, LineCap, Solidity};
 use femtovg::Color as femColor;
+use femtovg::{LineCap, Paint, Path, Solidity};
 use itertools::cloned;
+use std::collections::VecDeque;
+use vizia::Color as vizColor;
+use vizia::*;
 
 /// The direction the meter bar shows the peak in.
 /// The semantic is LowToHigh, so DownToUp is the standard vertical meter design
@@ -25,50 +25,43 @@ pub struct Meter<L> {
     /// The position of the meter in [0,1]
     lens: L,
     /// The directions the meter's ends are pointing in
-    direction: Direction
+    direction: Direction,
 }
 
-impl<L:Lens<Target = f32>> Meter<L> {
-    pub fn new(
-        cx: &mut Context,
-        lens: L,
-        direction: Direction
-    ) -> Handle<Self> {
+impl<L: Lens<Target = f32>> Meter<L> {
+    pub fn new(cx: &mut Context, lens: L, direction: Direction) -> Handle<Self> {
         Self {
             lens: lens.clone(),
-            direction
-        }.build2(cx, move |cx| {
+            direction,
+        }
+        .build2(cx, move |cx| {
             ZStack::new(cx, move |cx| {
-                MeterBar::new(cx, direction)
-                    .value(lens);
+                MeterBar::new(cx, direction).value(lens);
             });
         })
     }
 }
 
-impl<L:Lens<Target = f32>> View for Meter<L> {
+impl<L: Lens<Target = f32>> View for Meter<L> {
     fn element(&self) -> Option<String> {
         Some("meter".to_string())
     }
-
 }
 
 pub struct MeterBar {
     /// The value to show on the meter in [0,1]
     value: f32,
     /// The directions the meter's ends are pointing in
-    direction: Direction
+    direction: Direction,
 }
 
 impl MeterBar {
-    pub fn new(
-        cx: &mut Context,
-        direction: Direction
-    ) -> Handle<Self> {
+    pub fn new(cx: &mut Context, direction: Direction) -> Handle<Self> {
         Self {
             value: 0.0,
-            direction
-        }.build(cx)
+            direction,
+        }
+        .build(cx)
     }
 }
 
@@ -84,8 +77,13 @@ impl View for MeterBar {
         let pos_y = cx.cache.get_posy(cx.current);
         let value = self.value;
 
-        let bar_color =
-            cx.style.background_color.get(cx.current).cloned().unwrap_or_default().into();
+        let bar_color = cx
+            .style
+            .background_color
+            .get(cx.current)
+            .cloned()
+            .unwrap_or_default()
+            .into();
 
         // Create variables for the rectangle
         let front_x;
@@ -98,34 +96,33 @@ impl View for MeterBar {
         match self.direction {
             Direction::DownToUp => {
                 front_x = pos_x;
-                front_y = pos_y + (1.0-value) * height;
+                front_y = pos_y + (1.0 - value) * height;
 
                 front_w = width;
                 front_h = value * height;
-            },
+            }
             Direction::UpToDown => {
                 front_x = pos_x;
                 front_y = pos_y;
 
                 front_w = width;
                 front_h = value * height;
-            },
+            }
             Direction::LeftToRight => {
                 front_x = pos_x;
                 front_y = pos_y;
 
                 front_w = value * width;
                 front_h = height;
-            },
+            }
             Direction::RightToLeft => {
-                front_x = pos_x + (1.0-value) * width;
+                front_x = pos_x + (1.0 - value) * width;
                 front_y = pos_y;
 
                 front_w = value * width;
                 front_h = height;
             }
         };
-
 
         // Draw the bar
         if value >= 1e-3 {
@@ -141,7 +138,8 @@ impl View for MeterBar {
 
 pub trait MeterBarHandle {
     fn value<L: Lens<Target = f32>>(self, lens: L) -> Self
-        where L: Lens<Target = f32> ;
+    where
+        L: Lens<Target = f32>;
 }
 
 impl MeterBarHandle for Handle<'_, MeterBar> {
