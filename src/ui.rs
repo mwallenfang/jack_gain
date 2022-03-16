@@ -78,7 +78,7 @@ impl Model for UIData {
 
             // Convert the linear scale to a db scale
             changed_value = lin2db(changed_value);
-            if changed_value < -80.0 {
+            if changed_value < DYNAMIC_RANGE {
                 changed_value = 0.0;
             } else {
                 changed_value = 1.0 - (changed_value / DYNAMIC_RANGE);

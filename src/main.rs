@@ -11,7 +11,7 @@ static IN_R_ATOMIC: AtomicF32 = AtomicF32::new(0.0);
 static OUT_L_ATOMIC: AtomicF32 = AtomicF32::new(0.0);
 static OUT_R_ATOMIC: AtomicF32 = AtomicF32::new(0.0);
 
-const DYNAMIC_RANGE: f32 = -80.0;
+const DYNAMIC_RANGE: f32 = -60.0;
 
 mod meter;
 mod ui;
